@@ -1,0 +1,153 @@
+// This pipeline is triggered by the FastAPI backend via HTTP POST
+// when a tenant clicks "Deploy" in the UI.
+//
+// Required parameters (sent by FastAPI):
+//   SITE_ID       — database ID of the site
+//   SITE_SLUG     — URL-safe name  e.g. "my-restaurant"
+//   TENANT_ID     — first 8 chars used as namespace prefix
+//   IMAGE_TAG     — commit hash used as Docker image tag
+//   FRAMEWORK     — detected framework: react | flask | fastapi | static
+//   REPO_PATH     — absolute path to the bare git repo on disk
+//   DEPLOYMENT_ID — database ID of the Deployment record to update
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SITE_ID',       defaultValue: '')
+        string(name: 'SITE_SLUG',     defaultValue: '')
+        string(name: 'TENANT_ID',     defaultValue: '')
+        string(name: 'IMAGE_TAG',     defaultValue: '')
+        string(name: 'FRAMEWORK',     defaultValue: 'static')
+        string(name: 'REPO_PATH',     defaultValue: '')
+        string(name: 'DEPLOYMENT_ID', defaultValue: '')
+    }
+
+    environment {
+        REGISTRY_URL = 'localhost:5000'
+        NAMESPACE    = "${params.TENANT_ID.take(8)}"
+        IMAGE_NAME   = "${REGISTRY_URL}/${params.TENANT_ID.take(8)}/${params.SITE_SLUG}:${params.IMAGE_TAG}"
+    }
+
+    stages {
+
+        stage('Validate params') {
+            steps {
+                script {
+                    if (!params.SITE_SLUG || !params.TENANT_ID || !params.IMAGE_TAG) {
+                        error("Missing required parameters")
+                    }
+                }
+                echo "Deploying ${params.SITE_SLUG} (${params.FRAMEWORK}) for tenant ${params.TENANT_ID}"
+            }
+        }
+
+        stage('Checkout source') {
+            steps {
+                sh """
+                    rm -rf /tmp/build-${params.SITE_SLUG}
+                    git clone ${params.REPO_PATH} /tmp/build-${params.SITE_SLUG}
+                    cd /tmp/build-${params.SITE_SLUG} && git checkout ${params.IMAGE_TAG} 2>/dev/null || true
+                """
+            }
+        }
+
+        stage('Build Docker image') {
+            steps {
+                script {
+                    def templateFile = "docker/templates/${frameworkToTemplate(params.FRAMEWORK)}"
+                    sh """
+                        cp ${templateFile} /tmp/build-${params.SITE_SLUG}/Dockerfile
+                        docker build \
+                          -t ${IMAGE_NAME} \
+                          /tmp/build-${params.SITE_SLUG}
+                    """
+                }
+            }
+        }
+
+        stage('Push image') {
+            steps {
+                sh "docker push ${IMAGE_NAME}"
+            }
+        }
+
+        stage('Ensure namespace') {
+            steps {
+                sh """
+                    kubectl get namespace ${NAMESPACE} 2>/dev/null || \
+                    kubectl create namespace ${NAMESPACE}
+                """
+            }
+        }
+
+        stage('Apply K8s manifests') {
+            steps {
+                script {
+                    def minikubeIp = sh(script: 'minikube ip', returnStdout: true).trim()
+                    sh """
+                        python3 cicd/scripts/render-manifests.py \
+                          --site-slug    ${params.SITE_SLUG} \
+                          --tenant-id    ${NAMESPACE} \
+                          --image-name   ${IMAGE_NAME} \
+                          --namespace    ${NAMESPACE} \
+                          --minikube-ip  ${minikubeIp} \
+                          --output-dir   /tmp/manifests-${params.SITE_SLUG}
+
+                        kubectl apply -f /tmp/manifests-${params.SITE_SLUG}/
+                    """
+                }
+            }
+        }
+
+        stage('Wait for rollout') {
+            steps {
+                sh """
+                    kubectl rollout status deployment/${params.SITE_SLUG} \
+                      -n ${NAMESPACE} --timeout=180s
+                """
+            }
+        }
+
+        stage('Verify live') {
+            steps {
+                script {
+                    def minikubeIp = sh(script: 'minikube ip', returnStdout: true).trim()
+                    def url        = "http://${params.SITE_SLUG}.${minikubeIp}.nip.io"
+                    sh """
+                        sleep 5
+                        curl --fail --silent --max-time 15 ${url} > /dev/null
+                        echo "Site is live at ${url}"
+                    """
+                    env.LIVE_URL = url
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment ${params.DEPLOYMENT_ID} succeeded — ${env.LIVE_URL}"
+        }
+        failure {
+            echo "Deployment ${params.DEPLOYMENT_ID} FAILED"
+        }
+        always {
+            sh "rm -rf /tmp/build-${params.SITE_SLUG} /tmp/manifests-${params.SITE_SLUG} || true"
+        }
+    }
+}
+
+// Helper — maps framework name to Dockerfile template filename
+def frameworkToTemplate(String framework) {
+    def map = [
+        react:   'react-app.Dockerfile',
+        nextjs:  'react-app.Dockerfile',
+        vue:     'react-app.Dockerfile',
+        flask:   'flask-app.Dockerfile',
+        fastapi: 'fastapi-app.Dockerfile',
+        static:  'static-site.Dockerfile',
+        unknown: 'static-site.Dockerfile',
+    ]
+    return map.getOrDefault(framework, 'static-site.Dockerfile')
+}

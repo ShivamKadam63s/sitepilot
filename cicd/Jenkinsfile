@@ -1,0 +1,205 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY_URL   = 'localhost:5000'
+        SONAR_HOST     = 'http://localhost:9000'
+        SONAR_TOKEN    = credentials('sonarqube-token')
+        KUBECONFIG     = '/root/.kube/config'
+    }
+
+    triggers {
+        // Triggered by GitHub/GitLab webhook on push to main or develop
+        githubPush()
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+                    env.BRANCH_NAME_CLEAN = env.BRANCH_NAME.replaceAll('/', '-')
+                }
+                echo "Building commit: ${env.GIT_COMMIT_SHORT} on branch ${env.BRANCH_NAME}"
+            }
+        }
+
+        stage('Lint & Type Check') {
+            parallel {
+                stage('Frontend lint') {
+                    steps {
+                        dir('frontend') {
+                            sh 'npm ci --prefer-offline'
+                            sh 'npm run lint'
+                            sh 'npm run typecheck'
+                        }
+                    }
+                }
+                stage('Backend lint') {
+                    steps {
+                        dir('backend') {
+                            sh 'pip install --quiet flake8 black isort mypy'
+                            sh 'flake8 app/ --max-line-length=100 --exclude=alembic/'
+                            sh 'black --check app/'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Tests') {
+            parallel {
+                stage('Frontend tests') {
+                    steps {
+                        dir('frontend') {
+                            sh 'npm run test'
+                        }
+                    }
+                    post {
+                        always {
+                            publishHTML(target: [
+                                reportDir:   'frontend/coverage',
+                                reportFiles: 'index.html',
+                                reportName:  'Frontend Coverage'
+                            ])
+                        }
+                    }
+                }
+                stage('Backend tests') {
+                    steps {
+                        dir('backend') {
+                            sh '''
+                                pip install --quiet -r requirements.txt -r requirements-dev.txt
+                                pytest tests/ -v \
+                                    --cov=app \
+                                    --cov-report=xml:coverage.xml \
+                                    --cov-report=term-missing
+                            '''
+                        }
+                    }
+                    post {
+                        always {
+                            junit        'backend/test-results/*.xml'
+                            cobertura    coberturaReportFile: 'backend/coverage.xml'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh '''
+                        sonar-scanner \
+                          -Dproject.settings=cicd/sonarqube/sonar-project.properties \
+                          -Dsonar.login=${SONAR_TOKEN}
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            parallel {
+                stage('Build API image') {
+                    steps {
+                        sh """
+                            docker build \
+                              -t ${REGISTRY_URL}/sitepilot/api:${GIT_COMMIT_SHORT} \
+                              -t ${REGISTRY_URL}/sitepilot/api:latest \
+                              ./backend
+                        """
+                    }
+                }
+                stage('Build Frontend image') {
+                    steps {
+                        sh """
+                            docker build \
+                              --build-arg VITE_API_BASE_URL=/api \
+                              -t ${REGISTRY_URL}/sitepilot/frontend:${GIT_COMMIT_SHORT} \
+                              -t ${REGISTRY_URL}/sitepilot/frontend:latest \
+                              ./frontend
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                sh "docker push ${REGISTRY_URL}/sitepilot/api:${GIT_COMMIT_SHORT}"
+                sh "docker push ${REGISTRY_URL}/sitepilot/api:latest"
+                sh "docker push ${REGISTRY_URL}/sitepilot/frontend:${GIT_COMMIT_SHORT}"
+                sh "docker push ${REGISTRY_URL}/sitepilot/frontend:latest"
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                script {
+                    def namespace = env.BRANCH_NAME == 'main' ? 'sitepilot-platform' : 'sitepilot-staging'
+                    sh "kubectl apply -f kubernetes/platform/namespace.yml"
+                    sh "kubectl apply -f kubernetes/platform/"
+                    sh """
+                        kubectl set image deployment/sitepilot-api \
+                          api=${REGISTRY_URL}/sitepilot/api:${GIT_COMMIT_SHORT} \
+                          -n ${namespace}
+                    """
+                    sh """
+                        kubectl set image deployment/sitepilot-frontend \
+                          frontend=${REGISTRY_URL}/sitepilot/frontend:${GIT_COMMIT_SHORT} \
+                          -n ${namespace}
+                    """
+                    sh "kubectl rollout status deployment/sitepilot-api -n ${namespace} --timeout=120s"
+                    sh "kubectl rollout status deployment/sitepilot-frontend -n ${namespace} --timeout=120s"
+                }
+            }
+        }
+
+        stage('Smoke Test') {
+            when {
+                anyOf { branch 'main'; branch 'develop' }
+            }
+            steps {
+                sh '''
+                    sleep 5
+                    curl --fail --silent --max-time 10 \
+                        http://platform.sitepilot.local/api/health \
+                        | grep '"status":"ok"'
+                    echo "Smoke test passed"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline succeeded — commit ${env.GIT_COMMIT_SHORT} is live"
+        }
+        failure {
+            echo "Pipeline FAILED at stage: ${env.STAGE_NAME}"
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
