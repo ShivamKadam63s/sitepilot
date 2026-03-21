@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ site_slug }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ site_slug }}
+    managed-by: sitepilot
+    tenant: {{ tenant_id }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: {{ site_slug }}.{{ minikube_ip }}.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ site_slug }}
+                port:
+                  number: 80

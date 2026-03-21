@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ site_slug }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ site_slug }}
+    managed-by: sitepilot
+    tenant: {{ tenant_id }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ site_slug }}
+  template:
+    metadata:
+      labels:
+        app: {{ site_slug }}
+        tenant: {{ tenant_id }}
+    spec:
+      containers:
+        - name: site
+          image: {{ image_name }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30
