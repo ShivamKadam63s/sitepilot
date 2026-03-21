@@ -1,0 +1,118 @@
+---
+- name: Setup tools server (Docker registry + monitoring)
+  hosts: tools_servers
+  become: true
+
+  vars:
+    registry_port: 5000
+
+  tasks:
+
+    # ── Docker Registry ───────────────────────────────────────────────────────
+    - name: Create registry data directory
+      file:
+        path: /data/registry
+        state: directory
+        mode: "0755"
+
+    - name: Run local Docker registry
+      community.docker.docker_container:
+        name: registry
+        image: registry:2
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ registry_port }}:5000"
+        volumes:
+          - /data/registry:/var/lib/registry
+        env:
+          REGISTRY_STORAGE_DELETE_ENABLED: "true"
+
+    - name: Wait for registry to be ready
+      uri:
+        url: "http://localhost:{{ registry_port }}/v2/"
+        status_code: 200
+      retries: 10
+      delay: 3
+
+    # ── Repos storage for tenant Git repos ────────────────────────────────────
+    - name: Create repos storage directory
+      file:
+        path: /data/repos
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+
+    # ── Docker Compose for monitoring stack ───────────────────────────────────
+    - name: Create monitoring directory
+      file:
+        path: /opt/monitoring
+        state: directory
+        mode: "0755"
+
+    - name: Write monitoring docker-compose
+      copy:
+        dest: /opt/monitoring/docker-compose.yml
+        content: |
+          version: "3.9"
+          services:
+            prometheus:
+              image: prom/prometheus:v2.50.0
+              ports: ["9090:9090"]
+              volumes:
+                - ./prometheus.yml:/etc/prometheus/prometheus.yml
+                - prom_data:/prometheus
+              command:
+                - "--config.file=/etc/prometheus/prometheus.yml"
+                - "--storage.tsdb.retention.time=7d"
+              restart: unless-stopped
+
+            grafana:
+              image: grafana/grafana:10.3.0
+              ports: ["3001:3000"]
+              environment:
+                GF_SECURITY_ADMIN_PASSWORD: admin
+                GF_USERS_ALLOW_SIGN_UP: "false"
+              volumes:
+                - grafana_data:/var/lib/grafana
+              restart: unless-stopped
+
+            loki:
+              image: grafana/loki:2.9.0
+              ports: ["3100:3100"]
+              volumes:
+                - loki_data:/loki
+              command: -config.file=/etc/loki/local-config.yaml
+              restart: unless-stopped
+
+          volumes:
+            prom_data:
+            grafana_data:
+            loki_data:
+
+    - name: Write basic Prometheus config
+      copy:
+        dest: /opt/monitoring/prometheus.yml
+        content: |
+          global:
+            scrape_interval: 15s
+          scrape_configs:
+            - job_name: prometheus
+              static_configs:
+                - targets: ['localhost:9090']
+
+    - name: Start monitoring stack
+      community.docker.docker_compose:
+        project_src: /opt/monitoring
+        state: present
+
+    # ── Print access info ─────────────────────────────────────────────────────
+    - name: Print tools info
+      debug:
+        msg:
+          - "Docker Registry: http://{{ ansible_host }}:{{ registry_port }}"
+          - "Prometheus:      http://{{ ansible_host }}:9090"
+          - "Grafana:         http://{{ ansible_host }}:3001  (admin/admin)"
+          - "Loki:            http://{{ ansible_host }}:3100"
+          - "Repos path:      /data/repos"

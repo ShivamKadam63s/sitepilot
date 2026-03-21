@@ -1,0 +1,115 @@
+---
+- name: Setup CI/CD server (Jenkins + SonarQube)
+  hosts: ci_servers
+  become: true
+
+  vars:
+    jenkins_port: 8080
+    sonarqube_port: 9000
+    java_version: "17"
+
+  tasks:
+
+    # ── Java ──────────────────────────────────────────────────────────────────
+    - name: Install Java {{ java_version }}
+      apt:
+        name: "openjdk-{{ java_version }}-jdk"
+        state: present
+
+    - name: Set JAVA_HOME
+      lineinfile:
+        path: /etc/environment
+        line: 'JAVA_HOME="/usr/lib/jvm/java-{{ java_version }}-openjdk-amd64"'
+
+    # ── Jenkins ───────────────────────────────────────────────────────────────
+    - name: Add Jenkins GPG key
+      apt_key:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        state: present
+
+    - name: Add Jenkins repository
+      apt_repository:
+        repo: deb https://pkg.jenkins.io/debian-stable binary/
+        state: present
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+        update_cache: true
+
+    - name: Start and enable Jenkins
+      service:
+        name: jenkins
+        state: started
+        enabled: true
+
+    - name: Wait for Jenkins to start
+      wait_for:
+        port: "{{ jenkins_port }}"
+        delay: 15
+        timeout: 120
+
+    - name: Get Jenkins initial admin password
+      command: cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_initial_password
+      changed_when: false
+
+    - name: Print Jenkins initial password
+      debug:
+        msg: "Jenkins initial password: {{ jenkins_initial_password.stdout }}"
+
+    # ── Install additional Jenkins tools ──────────────────────────────────────
+    - name: Install SonarQube Scanner CLI
+      block:
+        - name: Download sonar-scanner
+          get_url:
+            url: https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+            dest: /tmp/sonar-scanner.zip
+
+        - name: Unzip sonar-scanner
+          unarchive:
+            src: /tmp/sonar-scanner.zip
+            dest: /opt/
+            remote_src: true
+
+        - name: Symlink sonar-scanner to /usr/local/bin
+          file:
+            src: /opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner
+            dest: /usr/local/bin/sonar-scanner
+            state: link
+
+    # ── SonarQube (runs as Docker container) ──────────────────────────────────
+    - name: Pull SonarQube Docker image
+      community.docker.docker_image:
+        name: sonarqube:10.4-community
+        source: pull
+
+    - name: Run SonarQube container
+      community.docker.docker_container:
+        name: sonarqube
+        image: sonarqube:10.4-community
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "{{ sonarqube_port }}:9000"
+        env:
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+        ulimits:
+          - nofile:65536:65536
+
+    - name: Wait for SonarQube to be ready
+      uri:
+        url: "http://localhost:{{ sonarqube_port }}/api/system/status"
+        status_code: 200
+      register: sq_status
+      until: sq_status.json.status == "UP"
+      retries: 30
+      delay: 10
+
+    - name: Print access info
+      debug:
+        msg:
+          - "Jenkins:   http://{{ ansible_host }}:{{ jenkins_port }}"
+          - "SonarQube: http://{{ ansible_host }}:{{ sonarqube_port }}"
+          - "Jenkins initial password: {{ jenkins_initial_password.stdout }}"

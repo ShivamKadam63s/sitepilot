@@ -1,0 +1,6 @@
+# Variables available to every host in the inventory
+registry_url: "{{ hostvars['sitepilot-tools']['ansible_host'] }}:5000"
+docker_insecure_registries:
+  - "{{ hostvars['sitepilot-tools']['ansible_host'] }}:5000"
+
+timezone: "UTC"
