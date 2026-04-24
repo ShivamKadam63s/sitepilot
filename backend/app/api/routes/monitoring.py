@@ -6,7 +6,7 @@ from app.models.models import User, Site
 from app.schemas.schemas import MetricsOut, LogEntryOut
 from app.services.monitoring_service import MonitoringService
 
-router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
 
 def _assert_site_access(site_id: str, db: Session, user: User) -> Site:

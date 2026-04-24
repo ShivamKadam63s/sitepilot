@@ -19,8 +19,8 @@ export interface Tenant {
 }
 
 export interface AuthResponse {
-  accessToken: string
-  tokenType: string
+  access_token: string
+  token_type: string
   user: User
   tenant: Tenant
 }
@@ -40,22 +40,33 @@ export type SiteStatus = 'draft' | 'deploying' | 'live' | 'failed'
 
 export interface Site {
   id: string
-  tenantId: string
+  tenantId?: string
+  tenant_id?: string
   name: string
   slug: string
   framework: Framework
   status: SiteStatus
-  liveUrl: string | null
-  repoPath: string | null
-  createdAt: string
-  updatedAt: string
+  liveUrl?: string | null
+  live_url?: string | null
+  repoPath?: string | null
+  repo_path?: string | null
+  sourceType?: string
+  source_type?: string
+  repoUrl?: string | null
+  repo_url?: string | null
+  createdAt?: string
+  created_at?: string
+  updatedAt?: string
+  updated_at?: string
 }
 
 export interface CreateSitePayload {
   name: string
   slug: string
-  sourceType: 'upload' | 'git'
+  sourceType?: 'upload' | 'git'
+  source_type?: 'upload' | 'git'
   repoUrl?: string
+  repo_url?: string
 }
 
 // ─── Deployments ─────────────────────────────────────────────────────────────
@@ -71,15 +82,26 @@ export type DeploymentStatus =
 
 export interface Deployment {
   id: string
-  siteId: string
+  siteId?: string
+  site_id?: string
+  triggeredById?: string
+  triggered_by_id?: string
   status: DeploymentStatus
-  imageTag: string
-  commitHash: string
-  commitMessage: string
-  liveUrl: string | null
-  errorMessage: string | null
-  createdAt: string
-  completedAt: string | null
+  imageTag?: string
+  image_tag?: string
+  commitHash?: string
+  commit_hash?: string
+  commitMessage?: string
+  commit_message?: string
+  liveUrl?: string | null
+  live_url?: string | null
+  errorMessage?: string | null
+  error_message?: string | null
+  logs?: string
+  createdAt?: string
+  created_at?: string
+  completedAt?: string | null
+  completed_at?: string | null
 }
 
 export interface CommitRecord {
@@ -95,13 +117,19 @@ export interface CommitRecord {
 export type TimeRange = '1h' | '6h' | '24h' | '7d'
 
 export interface SiteMetrics {
-  requestRate: number
-  errorRate: number
-  p95LatencyMs: number
-  activeConnections: number
+  requestRate?: number
+  request_rate?: number
+  errorRate?: number
+  error_rate?: number
+  p95LatencyMs?: number
+  p95_latency_ms?: number
+  activeConnections?: number
+  active_connections?: number
   timestamps: string[]
-  requestHistory: number[]
-  errorHistory: number[]
+  requestHistory?: number[]
+  request_history?: number[]
+  errorHistory?: number[]
+  error_history?: number[]
 }
 
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG'

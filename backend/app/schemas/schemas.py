@@ -75,6 +75,8 @@ class SiteOut(BaseModel):
     status:      str
     live_url:    Optional[str]
     repo_path:   Optional[str]
+    source_type: str
+    repo_url:    Optional[str]
     created_at:  datetime
     updated_at:  datetime
 
@@ -101,16 +103,18 @@ class DeploymentCreate(BaseModel):
 
 
 class DeploymentOut(BaseModel):
-    id:             str
-    site_id:        str
-    status:         str
-    image_tag:      str
-    commit_hash:    str
-    commit_message: str
-    live_url:       Optional[str]
-    error_message:  Optional[str]
-    created_at:     datetime
-    completed_at:   Optional[datetime]
+    id:              str
+    site_id:         str
+    triggered_by_id: str
+    status:          str
+    image_tag:       str
+    commit_hash:     str
+    commit_message:  str
+    live_url:        Optional[str]
+    error_message:   Optional[str]
+    logs:            str
+    created_at:      datetime
+    completed_at:    Optional[datetime]
 
     model_config = {"from_attributes": True}
 
@@ -123,12 +127,14 @@ class LogsOut(BaseModel):
 
 class MetricsOut(BaseModel):
     request_rate:    float
-    error_rate:      float
-    p95_latency_ms:  int
+class MetricsOut(BaseModel):
+    request_count:      int
+    error_rate:         float
+    p95_latency_ms:     int
     active_connections: int
-    timestamps:      list[str]
-    request_history: list[float]
-    error_history:   list[float]
+    timestamps:         list[str]
+    request_history:    list[float]
+    error_history:      list[float]
 
 
 class LogEntryOut(BaseModel):

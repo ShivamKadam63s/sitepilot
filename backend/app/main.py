@@ -10,8 +10,8 @@ app = FastAPI(
     title       = "SitePilot API",
     description = "Multi-tenant site deployment platform",
     version     = "0.1.0",
-    docs_url    = "/api/docs",
-    redoc_url   = "/api/redoc",
+    docs_url    = "/docs",
+    redoc_url   = "/redoc",
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ app.include_router(monitoring.router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
-@app.get("/api/health", tags=["health"])
+@app.get("/health", tags=["health"])
 def health():
     return {"status": "ok", "version": "0.1.0"}
 

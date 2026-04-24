@@ -7,7 +7,7 @@ from app.core.security import (
 from app.models.models import User
 from app.schemas.schemas import LoginRequest, TokenResponse, UserOut, TenantOut
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=TokenResponse)

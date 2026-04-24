@@ -90,8 +90,7 @@ Default dev credentials (auto-seeded on first start):
 ## Phase 4 — Run tests
 
 ```bash
-# Backend tests with coverage
-cd backend
+#Run it in project root directory
 pytest tests/ -v --cov=app --cov-report=term-missing
 
 # Frontend tests

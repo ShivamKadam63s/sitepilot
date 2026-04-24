@@ -8,7 +8,7 @@ from app.services.git_service import GitService
 from app.services.detection_service import detect_framework
 import shutil, os, zipfile, tempfile
 
-router = APIRouter(prefix="/api/sites", tags=["sites"])
+router = APIRouter(prefix="/sites", tags=["sites"])
 
 
 def _get_site_or_404(site_id: str, db: Session, user: User) -> Site:

@@ -34,9 +34,9 @@ export const useAuthStore = create<AuthState & AuthActions>((set) => ({
     set({ isLoading: true, error: null })
     try {
       const res = await authApi.login({ email, password })
-      sessionStorage.setItem(TOKEN_KEY, res.accessToken)
+      sessionStorage.setItem(TOKEN_KEY, res.access_token)
       set({
-        token: res.accessToken,
+        token: res.access_token,
         user: res.user,
         tenant: res.tenant,
         isAuthenticated: true,

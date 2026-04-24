@@ -36,8 +36,8 @@ export function SitesPage() {
       const payload: CreateSitePayload = {
         name: newName,
         slug: newSlug,
-        sourceType: repoUrl ? 'git' : 'upload',
-        repoUrl: repoUrl || undefined,
+        source_type: repoUrl ? 'git' : 'upload',
+        repo_url: repoUrl || undefined,
       }
       const site = await createSite(payload)
       setShowCreate(false)

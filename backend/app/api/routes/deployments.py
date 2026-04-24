@@ -6,7 +6,7 @@ from app.models.models import User, Deployment, Site
 from app.schemas.schemas import DeploymentCreate, DeploymentOut, LogsOut
 from app.services.deployment_service import DeploymentService
 
-router = APIRouter(prefix="/api/deployments", tags=["deployments"])
+router = APIRouter(prefix="/deployments", tags=["deployments"])
 
 
 def _get_deployment_or_404(dep_id: str, db: Session, user: User) -> Deployment:

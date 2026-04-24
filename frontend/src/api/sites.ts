@@ -1,27 +1,56 @@
 import { client } from './client'
 import type { Site, CreateSitePayload, CommitRecord, PaginatedResponse } from '@/types'
 
+const toCamelSite = (site: Record<string, unknown>): Site => ({
+  id: site.id,
+  tenantId: site.tenant_id,
+  name: site.name,
+  slug: site.slug,
+  framework: site.framework,
+  status: site.status,
+  liveUrl: site.live_url,
+  repoPath: site.repo_path,
+  sourceType: site.source_type,
+  repoUrl: site.repo_url,
+  createdAt: site.created_at,
+  updatedAt: site.updated_at,
+})
+
+const toSnakeCreateSitePayload = (payload: CreateSitePayload) => ({
+  name: payload.name,
+  slug: payload.slug,
+  source_type: payload.sourceType,
+  repo_url: payload.repoUrl,
+})
+
 export const sitesApi = {
   list: async (tenantId: string): Promise<Site[]> => {
     const { data } = await client.get<PaginatedResponse<Site>>('/api/sites', {
       params: { tenant_id: tenantId },
     })
-    return data.items
+    return data.items.map(toCamelSite)
   },
 
   get: async (siteId: string): Promise<Site> => {
     const { data } = await client.get<Site>(`/api/sites/${siteId}`)
-    return data
+    return toCamelSite(data)
   },
 
   create: async (payload: CreateSitePayload): Promise<Site> => {
-    const { data } = await client.post<Site>('/api/sites', payload)
-    return data
+    const { data } = await client.post<Site>('/api/sites', toSnakeCreateSitePayload(payload))
+    return toCamelSite(data)
   },
 
   update: async (siteId: string, patch: Partial<Site>): Promise<Site> => {
-    const { data } = await client.patch<Site>(`/api/sites/${siteId}`, patch)
-    return data
+    const body: Record<string, unknown> = {}
+    if (patch.name !== undefined) body.name = patch.name
+    if (patch.slug !== undefined) body.slug = patch.slug
+    if (patch.status !== undefined) body.status = patch.status
+    if (patch.liveUrl !== undefined) body.live_url = patch.liveUrl
+    if (patch.repoUrl !== undefined) body.repo_url = patch.repoUrl
+
+    const { data } = await client.patch<Site>(`/api/sites/${siteId}`, body)
+    return toCamelSite(data)
   },
 
   delete: async (siteId: string): Promise<void> => {
