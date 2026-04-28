@@ -24,11 +24,12 @@ export function MetricsPanel({ siteId }: MetricsPanelProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId])
 
-  const chartData = store.metrics
-    ? store.metrics.timestamps.map((t, i) => ({
+  const metrics = store.metrics
+  const chartData = metrics
+    ? metrics.timestamps.map((t, i) => ({
         time: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        requests: store.metrics!.requestHistory[i] ?? 0,
-        errors:   store.metrics!.errorHistory[i] ?? 0,
+        requests: metrics.requestHistory?.[i] ?? 0,
+        errors:   metrics.errorHistory?.[i] ?? 0,
       }))
     : []
 
@@ -52,21 +53,21 @@ export function MetricsPanel({ siteId }: MetricsPanelProps) {
       </div>
 
       {/* Stat cards */}
-      {store.metrics && (
+      {metrics && (
         <div className="grid grid-cols-3 gap-4">
           <StatCard
             label="Request rate"
-            value={`${store.metrics.requestRate.toFixed(1)}/s`}
+            value={`${(metrics.requestRate ?? 0).toFixed(1)}/s`}
           />
           <StatCard
             label="Error rate"
-            value={`${(store.metrics.errorRate * 100).toFixed(1)}%`}
-            alert={store.metrics.errorRate > 0.05}
+            value={`${((metrics.errorRate ?? 0) * 100).toFixed(1)}%`}
+            alert={(metrics.errorRate ?? 0) > 0.05}
           />
           <StatCard
             label="p95 latency"
-            value={`${store.metrics.p95LatencyMs}ms`}
-            alert={store.metrics.p95LatencyMs > 500}
+            value={`${metrics.p95LatencyMs ?? 0}ms`}
+            alert={(metrics.p95LatencyMs ?? 0) > 500}
           />
         </div>
       )}

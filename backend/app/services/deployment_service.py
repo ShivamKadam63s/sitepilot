@@ -76,6 +76,9 @@ class DeploymentService:
             if not site.repo_path:
                 raise RuntimeError("Site has no repository. Upload files first.")
 
+            if self.git_svc.is_empty(site.repo_path):
+                raise RuntimeError("Repository is empty. Upload files or commit changes first.")
+
             target = os.path.join(work_dir, "source")
             hash_to_use = commit_hash or "HEAD"
             self.git_svc.checkout(site.repo_path, hash_to_use, target)

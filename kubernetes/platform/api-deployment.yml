@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: api
-          image: localhost:5000/sitepilot/api:latest
-          imagePullPolicy: Always
+          image: localhost:5000/sitepilot/api:v16
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           envFrom:
@@ -26,7 +26,7 @@ spec:
                 name: sitepilot-secrets
           env:
             - name: APP_ENV
-              value: "production"
+              value: "development"
           resources:
             requests:
               cpu: "100m"
@@ -36,14 +36,14 @@ spec:
               memory: "512Mi"
           readinessProbe:
             httpGet:
-              path: /api/health
+              path: /health
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /api/health
+              path: /health
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 15
@@ -51,10 +51,15 @@ spec:
           volumeMounts:
             - name: repos
               mountPath: /data/repos
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
       volumes:
         - name: repos
           persistentVolumeClaim:
             claimName: repos-pvc
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
 ---
 apiVersion: v1
 kind: Service

@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -68,9 +72,10 @@ def seed_tenant(db):
 
 @pytest.fixture
 def seed_user(db, seed_tenant):
+    import uuid
     user = User(
         tenant_id       = seed_tenant.id,
-        email           = "test@example.com",
+        email           = f"test{uuid.uuid4().hex[:8]}@example.com",
         name            = "Test User",
         hashed_password = hash_password("testpass"),
         role            = "owner",
@@ -84,7 +89,7 @@ def seed_user(db, seed_tenant):
 def auth_headers(client, seed_user):
     resp = client.post(
         "/api/auth/login",
-        json={"email": "test@example.com", "password": "testpass"},
+        json={"email": seed_user.email, "password": "testpass"},
     )
     assert resp.status_code == 200
     token = resp.json()["access_token"]

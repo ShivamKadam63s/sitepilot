@@ -6,7 +6,7 @@ from app.models.models import User, Site
 from app.schemas.schemas import MetricsOut, LogEntryOut
 from app.services.monitoring_service import MonitoringService
 
-router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
 
 def _assert_site_access(site_id: str, db: Session, user: User) -> Site:
@@ -40,4 +40,6 @@ def get_logs(
 ):
     site = _assert_site_access(site_id, db, user)
     svc  = MonitoringService()
-    return svc.get_logs(site_slug=site.slug, level=level, search=search)
+    return svc.get_logs(
+        site_slug=site.slug, level=level, search=search, db=db, site_id=site_id
+    )

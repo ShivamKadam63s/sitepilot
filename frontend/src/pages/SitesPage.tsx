@@ -54,7 +54,12 @@ export function SitesPage() {
 
   async function handleDelete(siteId: string, siteName: string) {
     if (!confirm(`Delete "${siteName}"? This cannot be undone.`)) return
-    await deleteSite(siteId)
+    try {
+      await deleteSite(siteId)
+      if (tenant) loadSites(tenant.id) // Refresh list
+    } catch (err) {
+      alert(`Failed to delete site: ${err}`)
+    }
   }
 
   if (isLoading) {

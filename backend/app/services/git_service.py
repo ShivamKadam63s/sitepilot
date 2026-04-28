@@ -25,12 +25,42 @@ class GitService:
     def _repo_path(self, tenant_id: str, slug: str) -> str:
         return os.path.join(settings.repos_base_path, tenant_id, f"{slug}.git")
 
+    def is_empty(self, repo_path: str) -> bool:
+        """Check if the repository has any commits."""
+        if not os.path.exists(repo_path):
+            return True
+        r = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            cwd=repo_path, capture_output=True, text=True,
+        )
+        return r.returncode != 0
+
     def init_repo(self, tenant_id: str, slug: str) -> str:
         """Initialise a bare Git repository and return its path."""
         path = self._repo_path(tenant_id, slug)
         os.makedirs(path, exist_ok=True)
-        self._run(["git", "init", "--bare"], cwd=path)
+        self._run(["git", "init", "--bare", "--initial-branch=main"], cwd=path)
         return path
+
+    def clone_external(self, repo_url: str, tenant_id: str, slug: str) -> str:
+        """Clone an external repository and push it to the internal bare repository."""
+        internal_path = self.init_repo(tenant_id, slug)
+        temp_dir = internal_path.rstrip("/") + "_clone_temp"
+        try:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+            
+            # Clone external repo
+            self._run(["git", "clone", repo_url, temp_dir])
+            
+            # Change remote to our internal path and push
+            self._run(["git", "remote", "set-url", "origin", internal_path], cwd=temp_dir)
+            self._run(["git", "push", "origin", "HEAD:main"], cwd=temp_dir)
+            
+            return internal_path
+        finally:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
 
     def add_files(self, repo_path: str, source_dir: str) -> None:
         """

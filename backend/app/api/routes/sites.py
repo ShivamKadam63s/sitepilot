@@ -8,7 +8,7 @@ from app.services.git_service import GitService
 from app.services.detection_service import detect_framework
 import shutil, os, zipfile, tempfile
 
-router = APIRouter(prefix="/api/sites", tags=["sites"])
+router = APIRouter(prefix="/sites", tags=["sites"])
 
 
 def _get_site_or_404(site_id: str, db: Session, user: User) -> Site:
@@ -50,7 +50,10 @@ def create_site(
         raise HTTPException(status_code=409, detail="Slug already in use")
 
     git_svc   = GitService()
-    repo_path = git_svc.init_repo(user.tenant_id, payload.slug)
+    if payload.source_type == "git" and payload.repo_url:
+        repo_path = git_svc.clone_external(payload.repo_url, user.tenant_id, payload.slug)
+    else:
+        repo_path = git_svc.init_repo(user.tenant_id, payload.slug)
 
     site = Site(
         tenant_id   = user.tenant_id,
@@ -99,6 +102,11 @@ def delete_site(
 ):
     site = _get_site_or_404(site_id, db, user)
     user.tenant.sites_used = max(0, user.tenant.sites_used - 1)
+    
+    # Remove repo path if exists
+    if site.repo_path and os.path.exists(site.repo_path):
+        shutil.rmtree(site.repo_path, ignore_errors=True)
+
     db.delete(site)
     db.commit()
 

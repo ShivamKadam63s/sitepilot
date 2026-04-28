@@ -8,7 +8,10 @@ export interface CreateDeploymentPayload {
 
 export const deploymentsApi = {
   create: async (payload: CreateDeploymentPayload): Promise<Deployment> => {
-    const { data } = await client.post<Deployment>('/api/deployments', payload)
+    const { data } = await client.post<Deployment>('/api/deployments', {
+      site_id: payload.siteId,
+      commit_hash: payload.commitHash,
+    })
     return data
   },
 

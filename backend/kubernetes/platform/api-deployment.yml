@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sitepilot-api
+  namespace: sitepilot-platform
+  labels:
+    app: sitepilot-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sitepilot-api
+  template:
+    metadata:
+      labels:
+        app: sitepilot-api
+    spec:
+      containers:
+        - name: api
+          image: localhost:5000/sitepilot/api:v10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: sitepilot-secrets
+          env:
+            - name: APP_ENV
+              value: "development"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+          volumeMounts:
+            - name: repos
+              mountPath: /data/repos
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: repos-pvc
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sitepilot-api
+  namespace: sitepilot-platform
+spec:
+  selector:
+    app: sitepilot-api
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: repos-pvc
+  namespace: sitepilot-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

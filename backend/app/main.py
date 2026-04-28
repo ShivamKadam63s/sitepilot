@@ -10,8 +10,8 @@ app = FastAPI(
     title       = "SitePilot API",
     description = "Multi-tenant site deployment platform",
     version     = "0.1.0",
-    docs_url    = "/api/docs",
-    redoc_url   = "/api/redoc",
+    docs_url    = "/docs",
+    redoc_url   = "/redoc",
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -27,14 +27,15 @@ app.add_middleware(
 Instrumentator().instrument(app).expose(app)
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(auth.router)
-app.include_router(sites.router)
-app.include_router(deployments.router)
-app.include_router(monitoring.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(sites.router, prefix="/api")
+app.include_router(deployments.router, prefix="/api")
+app.include_router(monitoring.router, prefix="/api")
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
 @app.get("/api/health", tags=["health"])
+@app.get("/health", tags=["health"])  # Keep legacy root health check for Docker
 def health():
     return {"status": "ok", "version": "0.1.0"}
 

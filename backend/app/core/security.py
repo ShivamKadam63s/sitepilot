@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 
 settings  = get_settings()
-pwd_ctx   = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_ctx   = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 bearer    = HTTPBearer()
 
 ALGORITHM = "HS256"
@@ -52,7 +52,7 @@ def get_current_user(
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    from app.models.user import User
+    from app.models.models import User
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

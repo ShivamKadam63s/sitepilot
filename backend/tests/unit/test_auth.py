@@ -1,19 +1,19 @@
 def test_login_success(client, seed_user):
     resp = client.post(
         "/api/auth/login",
-        json={"email": "test@example.com", "password": "testpass"},
+        json={"email": seed_user.email, "password": "testpass"},
     )
     assert resp.status_code == 200
     data = resp.json()
     assert "access_token" in data
-    assert data["user"]["email"] == "test@example.com"
+    assert data["user"]["email"] == seed_user.email
     assert data["tenant"]["plan"] == "pro"
 
 
 def test_login_wrong_password(client, seed_user):
     resp = client.post(
         "/api/auth/login",
-        json={"email": "test@example.com", "password": "wrongpass"},
+        json={"email": seed_user.email, "password": "wrongpass"},
     )
     assert resp.status_code == 401
     assert "Invalid" in resp.json()["detail"]
@@ -27,11 +27,11 @@ def test_login_unknown_email(client):
     assert resp.status_code == 401
 
 
-def test_get_me(client, auth_headers):
+def test_get_me(client, auth_headers, seed_user):
     resp = client.get("/api/auth/me", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["user"]["email"] == "test@example.com"
+    assert data["user"]["email"] == seed_user.email
     assert "tenant" in data
 
 

@@ -75,7 +75,7 @@ class Site(Base):
     updated_at: Mapped[datetime]    = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
     tenant:      Mapped["Tenant"]          = relationship("Tenant", back_populates="sites")
-    deployments: Mapped[list["Deployment"]] = relationship("Deployment", back_populates="site")
+    deployments: Mapped[list["Deployment"]] = relationship("Deployment", back_populates="site", cascade="all, delete-orphan")
 
 
 # ── Deployment ────────────────────────────────────────────────────────────────

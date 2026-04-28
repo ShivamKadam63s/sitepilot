@@ -11,15 +11,15 @@ DOCKERFILE_TEMPLATES: dict[str, str] = {
     "react":   "react-app.Dockerfile",
     "nextjs":  "react-app.Dockerfile",
     "vue":     "react-app.Dockerfile",
+    "nodejs":  "node-app.Dockerfile",
     "flask":   "flask-app.Dockerfile",
     "fastapi": "fastapi-app.Dockerfile",
     "static":  "static-site.Dockerfile",
     "unknown": "static-site.Dockerfile",
 }
 
-TEMPLATES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "docker", "templates"
-)
+# Templates are copied to /app/docker/templates in the container image
+TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "docker", "templates")
 
 
 class DockerService:
@@ -71,8 +71,8 @@ class DockerService:
                 cwd=build_ctx,
             )
 
-        # Push to local registry
-        self._run(["docker", "push", image_name])
+        # Push to local registry (removed since we use local daemon directly)
+        # self._run(["docker", "push", image_name])
 
         return image_name
 
