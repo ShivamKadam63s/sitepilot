@@ -126,9 +126,7 @@ class LogsOut(BaseModel):
 # ── Monitoring ────────────────────────────────────────────────────────────────
 
 class MetricsOut(BaseModel):
-    request_rate:    float
-class MetricsOut(BaseModel):
-    request_count:      int
+    request_rate:       float
     error_rate:         float
     p95_latency_ms:     int
     active_connections: int

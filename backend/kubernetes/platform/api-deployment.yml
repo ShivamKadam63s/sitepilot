@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: localhost:5000/sitepilot/api:v16
+          image: localhost:5000/sitepilot/api:v10
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

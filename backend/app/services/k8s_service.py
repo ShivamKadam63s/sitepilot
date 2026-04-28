@@ -6,9 +6,9 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-TEMPLATES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "kubernetes", "templates"
-)
+_local_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "kubernetes", "templates")
+_docker_path = os.path.join(os.path.dirname(__file__), "..", "..", "kubernetes", "templates")
+TEMPLATES_DIR = _local_path if os.path.exists(_local_path) else _docker_path
 
 
 class K8sService:
@@ -54,11 +54,12 @@ class K8sService:
         live_url    = f"http://{site_slug}.{minikube_ip}.nip.io"
 
         ctx = {
-            "site_slug":  site_slug,
-            "tenant_id":  tenant_id[:8],
-            "image_name": image_name,
-            "namespace":  ns,
-            "live_url":   live_url,
+            "site_slug":   site_slug,
+            "tenant_id":   tenant_id[:8],
+            "image_name":  image_name,
+            "namespace":   ns,
+            "live_url":    live_url,
+            "minikube_ip": minikube_ip,
         }
 
         for template in [
@@ -102,7 +103,7 @@ class K8sService:
     def _get_minikube_ip(self) -> str:
         try:
             return self._run(["minikube", "ip"])
-        except RuntimeError:
+        except (RuntimeError, FileNotFoundError, Exception):
             return "127.0.0.1"
 
     def ensure_namespace(self, namespace: str) -> None:

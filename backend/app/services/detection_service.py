@@ -48,6 +48,7 @@ def detect_framework(directory: str) -> str:
                 return "react"
             if "vue" in deps:
                 return "vue"
+            return "nodejs"
         except Exception:
             pass
 

@@ -1,6 +1,7 @@
 import math
 import random
 from datetime import datetime, timezone, timedelta
+from sqlalchemy.orm import Session
 from app.schemas.schemas import MetricsOut, LogEntryOut
 
 # Time range → step seconds for Prometheus range queries
@@ -29,11 +30,16 @@ class MonitoringService:
         site_slug: str,
         level:     str | None,
         search:    str | None,
+        db:        Session | None = None,
+        site_id:   str | None = None,
     ) -> list[LogEntryOut]:
         try:
             return self._fetch_loki(site_slug, level, search)
         except Exception:
-            return self._synthetic_logs(level)
+            # Fall back to real deployment logs from DB if available
+            if db and site_id:
+                return self._deployment_logs(db, site_id, level, search)
+            return []
 
     # ── Prometheus ────────────────────────────────────────────────────────────
 
@@ -155,25 +161,90 @@ class MonitoringService:
             error_history      = error_history,
         )
 
-    def _synthetic_logs(self, level: str | None) -> list[LogEntryOut]:
-        levels   = ["INFO", "INFO", "INFO", "WARN", "ERROR"]
-        messages = [
-            "GET / 200 12ms",
-            "GET /api/health 200 3ms",
-            "POST /api/data 201 45ms",
-            "Slow query detected: 320ms",
-            "Connection pool exhausted, retrying...",
-            "GET /favicon.ico 404 1ms",
-        ]
-        now     = datetime.now(timezone.utc)
+    def _deployment_logs(
+        self,
+        db:      Session,
+        site_id: str,
+        level:   str | None,
+        search:  str | None,
+    ) -> list[LogEntryOut]:
+        from app.models.models import Deployment
+        # Get the latest deployment for this site
+        deployment = db.query(Deployment).filter(
+            Deployment.site_id == site_id
+        ).order_by(Deployment.created_at.desc()).first()
+
+        if not deployment or not deployment.logs:
+            return []
+
         entries = []
-        for i in range(20):
-            lvl = level or random.choice(levels)
+        lines = deployment.logs.strip().split("\n")
+        # Deployment logs are usually timestamped "HH:MM:SS LEVEL Message"
+        # but we'll fallback to deployment created_at if parsing fails
+        base_time = deployment.created_at or datetime.now(timezone.utc)
+
+        for i, line in enumerate(lines):
+            # Very simple parsing for deployment logs which are often:
+            # "06:10:10 INFO Building..."
+            parts = line.split(" ", 2)
+            lvl = "INFO"
+            msg = line
+            ts = base_time + timedelta(seconds=i) # fallback sequential
+
+            if len(parts) >= 3:
+                # Try to parse HH:MM:SS
+                try:
+                    h, m, s = map(int, parts[0].split(":"))
+                    ts = base_time.replace(hour=h, minute=m, second=s)
+                    lvl = parts[1]
+                    msg = parts[2]
+                except:
+                    pass
+
+            if level and level.upper() != lvl.upper():
+                continue
+            if search and search.lower() not in msg.lower():
+                continue
+
             entries.append(LogEntryOut(
-                timestamp = (now - timedelta(seconds=i * 30)).isoformat(),
+                timestamp = ts.isoformat(),
                 level     = lvl,
-                service   = "app",
-                message   = random.choice(messages),
+                service   = "builder",
+                message   = msg,
                 trace_id  = None,
             ))
-        return entries
+
+        return entries[::-1] # Newest first
+
+    # ── Synthetic fallbacks ───────────────────────────────────────────────────
+
+    def _synthetic_metrics(self, time_range: str) -> MetricsOut:
+        delta  = RANGE_DELTA.get(time_range, 3600)
+        step   = RANGE_STEPS.get(time_range, 60)
+        points = delta // step
+        now    = datetime.now(timezone.utc)
+
+        timestamps      = []
+        request_history = []
+        error_history   = []
+
+        for i in range(points):
+            t   = now - timedelta(seconds=(points - i) * step)
+            rps = max(0.0, 5.0 + 3.0 * math.sin(i / 10) + random.uniform(-0.5, 0.5))
+            eps = rps * random.uniform(0.0, 0.03)
+            timestamps.append(t.isoformat())
+            request_history.append(round(rps, 2))
+            error_history.append(round(eps, 4))
+
+        return MetricsOut(
+            request_rate       = request_history[-1] if request_history else 0.0,
+            error_rate         = round(
+                error_history[-1] / request_history[-1]
+                if request_history[-1] > 0 else 0.0, 4
+            ),
+            p95_latency_ms     = random.randint(40, 200),
+            active_connections = random.randint(1, 20),
+            timestamps         = timestamps,
+            request_history    = request_history,
+            error_history      = error_history,
+        )

@@ -46,6 +46,25 @@ If anything is missing, follow the install links in the table above.
 
 ---
 
+## SitePilot Dev Environment (Recommended)
+
+To avoid installing multiple tools on your host machine (especially **Ansible**, which requires WSL2 on Windows), we provide a pre-configured Ubuntu-based management container.
+
+```bash
+# 1. Build the environment image
+docker build -t sitepilot-env ./docker/sitepilot-env
+
+# 2. Run the environment container (mounts current directory and docker socket)
+docker run -it --name sitepilot-manager \
+  -v ${PWD}:/workspace \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  sitepilot-env
+```
+
+Inside this container, all tools (Terraform, Ansible, kubectl, Minikube, Node, Python) are pre-installed and ready to use for Phase 5 and Phase 6.
+
+---
+
 ## Phase 2 — Project initialisation
 
 ```bash

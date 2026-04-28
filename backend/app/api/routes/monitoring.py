@@ -40,4 +40,6 @@ def get_logs(
 ):
     site = _assert_site_access(site_id, db, user)
     svc  = MonitoringService()
-    return svc.get_logs(site_slug=site.slug, level=level, search=search)
+    return svc.get_logs(
+        site_slug=site.slug, level=level, search=search, db=db, site_id=site_id
+    )

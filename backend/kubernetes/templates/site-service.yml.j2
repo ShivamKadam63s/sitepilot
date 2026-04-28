@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ site_slug }}
+  namespace: {{ namespace }}
+  labels:
+    app: {{ site_slug }}
+    managed-by: sitepilot
+    tenant: {{ tenant_id }}
+spec:
+  selector:
+    app: {{ site_slug }}
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
