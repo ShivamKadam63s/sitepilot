@@ -1,4 +1,5 @@
 # SitePilot
+Use: https://github.com/docker/getting-started-app
 
 A multi-tenant website deployment platform. Upload a site or point to a Git
 repo — SitePilot detects the framework, builds a Docker image, and deploys it
